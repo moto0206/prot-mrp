@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  app:
+    # 同じディレクトリにあるDockerfileを使ってイメージをビルドする設定
+    build: .
+    # 起動するコンテナに分かりやすい名前を付けます
+    container_name: mrp_calculator
+    # ローカルのappフォルダをコンテナ内のappフォルダに同期（マウント）します
+    # これにより、コンテナを再ビルドしなくても、ローカルでPythonコードを
+    # 修正するだけで変更がコンテナ内に即座に反映され、開発が非常にスムーズになります。
+    volumes:
+      - ./app:/usr/src/app/app
