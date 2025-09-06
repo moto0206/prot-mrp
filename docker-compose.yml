@@ -1,13 +1,21 @@
-version: "3.8"
+version: "3.8" # この行は警告が出ているので削除してもOKです
 
 services:
   app:
-    # 同じディレクトリにあるDockerfileを使ってイメージをビルドする設定
     build: .
-    # 起動するコンテナに分かりやすい名前を付けます
-    container_name: mrp_calculator
-    # ローカルのappフォルダをコンテナ内のappフォルダに同期（マウント）します
-    # これにより、コンテナを再ビルドしなくても、ローカルでPythonコードを
-    # 修正するだけで変更がコンテナ内に即座に反映され、開発が非常にスムーズになります。
+    container_name: mrp_api_server
+    # 変更点①: 'app.main' から 'main' に変更
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    # 変更点②: 同期先を '/usr/src/app' に変更
     volumes:
-      - ./app:/usr/src/app/app
+      - ./app:/usr/src/app
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: mrp_web_server
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
