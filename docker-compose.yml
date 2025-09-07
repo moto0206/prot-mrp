@@ -1,14 +1,14 @@
-version: "3.8" # この行は警告が出ているので削除してもOKです
-
 services:
   app:
     build: .
     container_name: mrp_api_server
-    # 変更点①: 'app.main' から 'main' に変更
     command: uvicorn main:app --host 0.0.0.0 --port 8000
-    # 変更点②: 同期先を '/usr/src/app' に変更
     volumes:
       - ./app:/usr/src/app
+    environment: # 👈 この3行を追記します
+      - DATABASE_URL=postgresql://user:password@db:5432/mrp_db
+    depends_on: # 👈 appがdbの後に起動するように追記します
+      - db
 
   nginx:
     image: nginx:1.25-alpine
@@ -19,3 +19,18 @@ services:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - app
+
+  db:
+    image: postgres:15-alpine
+    container_name: mrp_database
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=mrp_db
+
+volumes:
+  postgres_data:
