@@ -1,5 +1,6 @@
 pandas
 fastapi
 uvicorn[standard]
-psycopg2-binary # 👈 これを追記
-sqlalchemy    # 👈 これも追記（DBとのやり取りが簡単になる）
+psycopg2-binary
+sqlalchemy
+boto3 # 👈 これを追記

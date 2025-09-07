@@ -3,18 +3,58 @@ import pandas as pd
 from fastapi import FastAPI
 from mrp_logic.calculator import run_mrp_calculation
 import sqlalchemy
+import boto3  # 👈 boto3をインポート
+import json  # 👈 jsonをインポート
 
-# ★★★★★ デバッグ用：DB接続情報を環境変数から取得 ★★★★★
-db_url = os.environ.get("DATABASE_URL")
-if not db_url:
-    raise ValueError("DATABASE_URL environment variable not set")
 
+# --- Secrets Managerからパスワードを取得する関数 ---
+def get_secret(secret_name):
+    region_name = (
+        "ap-northeast-1"  # 👈 Secrets Managerがあるリージョンに合わせてください
+    )
+
+    # Create a Secrets Manager client
+    session = boto3.session.Session()
+    client = session.client(service_name="secretsmanager", region_name=region_name)
+
+    try:
+        get_secret_value_response = client.get_secret_value(SecretId=secret_name)
+    except Exception as e:
+        print(f"❌ Secrets Managerからのシークレット取得に失敗: {e}")
+        raise e
+
+    # Secrets Managerは通常、JSON形式で値を返す
+    secret = get_secret_value_response["SecretString"]
+    return json.loads(secret)
+
+
+# --- アプリケーションのメイン処理 ---
 try:
-    engine = sqlalchemy.create_engine(db_url)
-    print("✅ データベースエンジン作成成功")
+    # ★★★★★ ここからが修正箇所 ★★★★★
+    # 1. ハードコードせず、環境変数からシークレットのARNを取得
+    SECRET_ARN = os.environ.get("SECRET_ARN")
+    if not SECRET_ARN:
+        raise ValueError("SECRET_ARN environment variable not set")
+
+    secrets = get_secret(SECRET_ARN)
+
+    # 2. Secrets Managerから取得した情報でデータベースURLを組み立てる
+    db_username = secrets["username"]
+    db_password = secrets["password"]
+    db_host = secrets["host"]  # エンドポイント
+    db_port = secrets["port"]
+    db_name = secrets["dbname"]
+
+    DATABASE_URL = (
+        f"postgresql://{db_username}:{db_password}@{db_host}:{db_port}/{db_name}"
+    )
+
+    print("✅ Secrets ManagerからDB情報を取得し、接続URLを生成しました")
+
+    engine = sqlalchemy.create_engine(DATABASE_URL)
+
 except Exception as e:
-    print(f"❌ データベースエンジン作成失敗: {e}")
-    # 失敗した場合はここで処理を中断させる
+    print("❌ データベースエンジンの作成中にエラーが発生しました。")
     raise
 
 app = FastAPI()
@@ -25,30 +65,15 @@ def read_root():
     return {"message": "MRP Calculation API is running"}
 
 
+# /run-mrp 以下の処理は変更なし
 @app.get("/run-mrp")
 def execute_mrp():
     try:
         with engine.connect() as connection:
-            print("\n--- デバッグ開始：DBからDataFrameへの読み込み ---")
-
-            # ★★★★★ デバッグ①：BOMテーブルの読み込み ★★★★★
             bom_df = pd.read_sql("SELECT * FROM bom", connection)
-            print(f"1. BOM DFの形状: {bom_df.shape}")  # (4, 4)のはず
-            # print("BOM DFの内容:\n", bom_df.head()) # 必要ならコメントアウトを外す
-
-            # ★★★★★ デバッグ②：INVENTORYテーブルの読み込み ★★★★★
             inventory_df = pd.read_sql("SELECT * FROM inventory", connection)
-            print(f"2. INVENTORY DFの形状: {inventory_df.shape}")  # (3, 2)のはず
-            # print("INVENTORY DFの内容:\n", inventory_df.head())
-
-            # ★★★★★ デバッグ③：DEMANDテーブルの読み込み ★★★★★
             demand_df = pd.read_sql("SELECT * FROM demand", connection)
-            print(f"3. DEMAND DFの形状: {demand_df.shape}")  # (2, 3)のはず
-            # print("DEMAND DFの内容:\n", demand_df.head())
 
-            print("--- デバッグ終了：読み込み完了、計算処理へ --- \n")
-
-        # MRP計算を実行
         order_list_df = run_mrp_calculation(demand_df, bom_df, inventory_df)
 
         if order_list_df.empty:
@@ -57,5 +82,4 @@ def execute_mrp():
             return order_list_df.to_dict(orient="index")
 
     except Exception as e:
-        print(f"❌ MRP計算中にエラーが発生: {e}")
         return {"error": f"An error occurred: {e}"}

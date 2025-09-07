@@ -6,7 +6,7 @@ services:
     volumes:
       - ./app:/usr/src/app
     environment: # 👈 この3行を追記します
-      - DATABASE_URL=postgresql://user:password@db:5432/mrp_db
+      - SECRET_ARN=your_secret_arn_or_name_here # 👈 ここにARNを設定
     depends_on: # 👈 appがdbの後に起動するように追記します
       - db
 
@@ -28,9 +28,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data/
     environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=mrp_db
+      - POSTGRES_USER=${POSTGRES_USER} # 👈 .envから読み込む
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD} # 👈 .envから読み込む
+      - POSTGRES_DB=${POSTGRES_DB} # 👈 .envから読み込む
 
 volumes:
   postgres_data:
